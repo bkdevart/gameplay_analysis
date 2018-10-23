@@ -362,15 +362,16 @@ class GamePlayData:
         # filter down to results with yesterday's date
         current_streak = (df[(df['next_day'] ==
                              (datetime.now() - timedelta(days=1)).date())]
-                          [['title']])
+                          [['title', 'streak_num']])
         # turn the title(s) into a list to print
         # if current_streak empty, put 'None' in list
         print('Current streak:')
         if len(current_streak) == 0:
             print('None')
         else:
-            current_streak_list = current_streak['title'].tolist()
-            print("\n".join(current_streak_list))
+            current_streak['days'] = current_streak['streak_num'] + 1
+            current_streak = current_streak[['title', 'days']].set_index('title')
+            print(current_streak)
         # take max streak_sum, grouped by title, store in new object
         max_streak = df.groupby('title', as_index=False)['streak_num'].max()
         max_streak['days'] = max_streak['streak_num'] + 1
