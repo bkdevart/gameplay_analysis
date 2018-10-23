@@ -356,15 +356,30 @@ class GamePlayData:
         # forward fill streak_num to complete streak count
         for col in df.columns:
             g = df['streak_num'].notnull().cumsum()
-            df['streak_num'] = df['streak_num'].fillna(method='ffill') + df['streak_num'].groupby(g).cumcount()
-        # take max streak_sum, grouped by title
-        df = df.groupby('title', as_index=False)['streak_num'].max()
-        df['days'] = df['streak_num'] + 1
-        # TODO: add current streak (streaks with yesterday's date)
-        df = df[['title', 'days']].sort_values(['days'], ascending=False)
-        df = df.reset_index().set_index('title')[['days']]
-        df.head(10).plot.barh(title='Top 10 Streaks')
-        return df
+            df['streak_num'] = (df['streak_num'].fillna(method='ffill') +
+                                df['streak_num'].groupby(g).cumcount())
+        # calculate current streak (streaks with yesterday's date)
+        # filter down to results with yesterday's date
+        current_streak = (df[(df['next_day'] ==
+                             (datetime.now() - timedelta(days=1)).date())]
+                          [['title']])
+        # turn the title(s) into a list to print
+        # if current_streak empty, put 'None' in list
+        print('Current streak:')
+        if len(current_streak) == 0:
+            print('None')
+        else:
+            current_streak_list = current_streak['title'].tolist()
+            print("\n".join(current_streak_list))
+        # take max streak_sum, grouped by title, store in new object
+        max_streak = df.groupby('title', as_index=False)['streak_num'].max()
+        max_streak['days'] = max_streak['streak_num'] + 1
+        max_streak = max_streak[['title', 'days']].sort_values(['days'],
+                                                               ascending=False)
+        # graph data
+        max_streak = max_streak.reset_index().set_index('title')[['days']]
+        max_streak.head(10).plot.barh(title='Top 10 Streaks')
+        return max_streak
 
     def __init__(self):
         '''
@@ -621,12 +636,12 @@ def summarize():
     game_data = GamePlayData()
     game_data.game_of_the_week()
     game_data.need_to_play()
+    game_data.check_streaks()
     game_data.line_weekly_hours()
     game_data.bar_graph_top()
     game_data.pie_graph_top()
     game_data.line_graph_top()
     game_data.graph_two_games_weekly()
-    game_data.check_streaks()
     game_data.save_data()
 # %%
 
