@@ -19,15 +19,11 @@ Techniques used:
 import json
 from itertools import product
 # from pathlib import Path
-# from datetime import timedelta
+from datetime import timedelta
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 from datetime import datetime
-# TODO: create external config file for file paths
-# TODO: upload code to github
-# TODO: check class instance variables from init
-# TODO: add streaks
 # TODO: write detailed docstrings
 # TODO: have line graphs return DataFrame
 # TODO: in the summary at the top, have messages explaining movement in ranks
@@ -295,6 +291,96 @@ class GamePlayData:
         graph_data.plot(title='Weekly History')
         return graph_data
 
+    def save_data(self):
+        '''
+        Outputs data frames to a multiple-tabbed excel file
+        '''
+        # run all class methods to gather data for output
+        monthly_hour_agg = self.__agg_month()
+        weekly_hour_agg = self.__agg_week()
+        time_rank_by_day_all = self.__agg_time_rank_by_day()
+        total_time_played = self.__agg_total_time_played()
+        game_last_played = self.last_played()
+        day_of_week_avg = self.__agg_day_of_week()
+        game_day_count, total_game_day_count = self.__total_game_day_count()
+        date_first_played = self.log_first_played()
+        may_be_interested_in = self.log_interested_in()
+
+        # output data
+        writer = pd.ExcelWriter((self._config['output'] + 'games.xlsx'))
+        total_time_played.to_excel(writer, sheet_name='total_time',
+                                   index=False)
+        may_be_interested_in.to_excel(writer,
+                                      sheet_name='may_be_interested_in',
+                                      index=False)
+        day_of_week_avg.to_excel(writer, sheet_name='day_of_week_avg',
+                                 index=False)
+        game_day_count.to_excel(writer, sheet_name='game_day_of_week_count',
+                                index=False)
+        total_game_day_count.to_excel(writer,
+                                      sheet_name='total_game_day_count',
+                                      index=False)
+        date_first_played.to_excel(writer, sheet_name='date_first_played',
+                                   index=False)
+        time_rank_by_day_all.to_excel(writer, sheet_name='rank_by_day',
+                                      index=False)
+        weekly_hour_agg.to_excel(writer, sheet_name='weekly_hours',
+                                 index=False)
+        game_last_played.to_excel(writer, sheet_name='game_last_played',
+                                  index=False)
+        monthly_hour_agg.to_excel(writer, sheet_name='monthly_rank',
+                                  index=False)
+        writer.save()
+
+    def check_streaks(self):
+        # data needed: game title and date
+        df = self._source_data[['title', 'date']]
+        # order by game title first, then date
+        df = df.sort_values(['title', 'date'])
+        # use groupby with title, shift date down by one to get next day played
+        df['next_day'] = df.groupby('title')['date'].shift(-1)
+        # fill nat values in next_day with date values (for subtraction)
+        df['next_day'] = df['next_day'].fillna(df['date'])
+        # subtract number of days between date and next_day, store in column
+        df['consecutive'] = (df['next_day'] - df['date'])
+        # if column value = 1 day, streak = true (new column)
+        df = df[(df['consecutive'] == timedelta(days=1))]
+        # need to group streaks
+        # test: date - date.shift(-1) = 1 day, and same for next_day
+        df['group'] = (((df['next_day'] - df['next_day'].shift(1))
+                        == timedelta(days=1)) &
+                       ((df['date'] - df['date'].shift(1))
+                        == timedelta(days=1)))
+        # false represents the beginning of each streak, so it equals 1
+        df['streak_num'] = np.where(df['group'] == False, 1, np.nan)
+        # forward fill streak_num to complete streak count
+        for col in df.columns:
+            g = df['streak_num'].notnull().cumsum()
+            df['streak_num'] = (df['streak_num'].fillna(method='ffill') +
+                                df['streak_num'].groupby(g).cumcount())
+        # calculate current streak (streaks with yesterday's date)
+        # filter down to results with yesterday's date
+        current_streak = (df[(df['next_day'] ==
+                             (datetime.now() - timedelta(days=1)).date())]
+                          [['title']])
+        # turn the title(s) into a list to print
+        # if current_streak empty, put 'None' in list
+        print('Current streak:')
+        if len(current_streak) == 0:
+            print('None')
+        else:
+            current_streak_list = current_streak['title'].tolist()
+            print("\n".join(current_streak_list))
+        # take max streak_sum, grouped by title, store in new object
+        max_streak = df.groupby('title', as_index=False)['streak_num'].max()
+        max_streak['days'] = max_streak['streak_num'] + 1
+        max_streak = max_streak[['title', 'days']].sort_values(['days'],
+                                                               ascending=False)
+        # graph data
+        max_streak = max_streak.reset_index().set_index('title')[['days']]
+        max_streak.head(10).plot.barh(title='Top 10 Streaks')
+        return max_streak
+
     def __init__(self):
         '''
         Set up paths, imports data and perform initial calculations:
@@ -308,9 +394,9 @@ class GamePlayData:
         with open('config.json') as f:
             config = json.load(f)
         path = (config['input'])
-        source = pd.read_csv((path + 'Games-Game Log.csv'),
+        source = pd.read_csv((path + 'game_log.csv'),
                              parse_dates=['date', 'time_played'])
-        complete = pd.read_csv(path + 'completed-completed.csv')
+        complete = pd.read_csv(path + 'completed.csv')
 
         # perform initial calculations
         source['minutes_played'] = ((source['time_played'].dt.hour * 60)
@@ -540,47 +626,6 @@ class GamePlayData:
                                    .rank(ascending=False, method='dense'))
         total_day_count.sort_values('rank', inplace=True)
         return day_count, total_day_count
-
-    def save_data(self):
-        '''
-        Outputs data frames to a multiple-tabbed excel file
-        '''
-        # run all class methods to gather data for output
-        monthly_hour_agg = self.__agg_month()
-        weekly_hour_agg = self.__agg_week()
-        time_rank_by_day_all = self.__agg_time_rank_by_day()
-        total_time_played = self.__agg_total_time_played()
-        game_last_played = self.last_played()
-        day_of_week_avg = self.__agg_day_of_week()
-        game_day_count, total_game_day_count = self.__total_game_day_count()
-        date_first_played = self.log_first_played()
-        may_be_interested_in = self.log_interested_in()
-
-        # output data
-        writer = pd.ExcelWriter((self._config['output'] + 'games.xlsx'))
-        total_time_played.to_excel(writer, sheet_name='total_time',
-                                   index=False)
-        may_be_interested_in.to_excel(writer,
-                                      sheet_name='may_be_interested_in',
-                                      index=False)
-        day_of_week_avg.to_excel(writer, sheet_name='day_of_week_avg',
-                                 index=False)
-        game_day_count.to_excel(writer, sheet_name='game_day_of_week_count',
-                                index=False)
-        total_game_day_count.to_excel(writer,
-                                      sheet_name='total_game_day_count',
-                                      index=False)
-        date_first_played.to_excel(writer, sheet_name='date_first_played',
-                                   index=False)
-        time_rank_by_day_all.to_excel(writer, sheet_name='rank_by_day',
-                                      index=False)
-        weekly_hour_agg.to_excel(writer, sheet_name='weekly_hours',
-                                 index=False)
-        game_last_played.to_excel(writer, sheet_name='game_last_played',
-                                  index=False)
-        monthly_hour_agg.to_excel(writer, sheet_name='monthly_rank',
-                                  index=False)
-        writer.save()
 # %%
 
 
@@ -591,6 +636,7 @@ def summarize():
     game_data = GamePlayData()
     game_data.game_of_the_week()
     game_data.need_to_play()
+    game_data.check_streaks()
     game_data.line_weekly_hours()
     game_data.bar_graph_top()
     game_data.pie_graph_top()
