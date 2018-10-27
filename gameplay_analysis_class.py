@@ -24,7 +24,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 from datetime import datetime
-# TODO: write detailed docstrings
 # TODO: add a by-game summary
 # TODO: have line graphs return DataFrame
 # TODO: in the summary at the top, have messages explaining movement in ranks
@@ -186,7 +185,7 @@ class GamePlayData:
         Creates a line graph for current game rankings
             - x-axis is date, y-axis is rank
             - lines represent rank by day
-        
+
         Parameters
         ----------
         num_games : int
@@ -601,6 +600,8 @@ class GamePlayData:
                 Title of game
             hours_played : float64
                 Hours played for given month
+            rank_by_month : float64
+                Title's time ranked for given month
         '''
         monthly_hour = (self._source_data
                         .groupby(['month', 'title'], as_index=False)
@@ -616,20 +617,17 @@ class GamePlayData:
         Creates a DataFame that rolls up weekly totals.  Does not include game
         title information.
 
-        DataFrame Fields
-        ------
-        week_start : datetime
-            The date of the first Sunday of each week
-        hours_played : float
-            Total hours played for the week
-        days_sampled : int
-            Number of days containing data for the week
-        avg_hrs_per_day : float
-            hours_played / days_sampled
-
         Returns
         -------
-        DataFrame
+        weekly_hour_days : DataFrame
+            week_start : datetime64[ns]
+                The date of the first Sunday of each week
+            hours_played : float64
+                Total hours played for the week
+            days_sampled : int64
+                Number of days containing data for the week
+            avg_hrs_per_day : float64
+                hours_played / days_sampled
         '''
         weekly_hour = (self._source_data.groupby('week_start', as_index=False)
                        .sum()[['week_start', 'hours_played']])
@@ -650,6 +648,21 @@ class GamePlayData:
         Ranks total game hours by game, by day
             - Calculates cumulative time spent in each game by day
             - Ranks each game by cumulative time for each day
+
+        Returns
+        -------
+        time_rank : DataFrame
+            date : datetime64[ns]
+                Date of data sample.  This does not indicate that the game was
+                played, it represents cumulative totals for the game at this
+                date.
+            title : object (str)
+                Title of game
+            cum_total_minutes : float64
+                Cumulative minutes played for a given game, running from start
+                of data tracking
+            rank_by_day : float64
+                Title's time ranked for given day
         '''
         time_rank_by_day = pd.DataFrame(self
                                         ._source_data[['title', 'date',
@@ -683,24 +696,20 @@ class GamePlayData:
             - Calculates time spent in each game by week
             - Ranks each game by time for each day
 
-        DataFrame Fields
-        ----------------
-
-        week_start : datetime
-            The date of the first Sunday of each week
-        title : object
-            The title of the game played
-        minutes_played : float
-            Total minutes played in the week by game
-        rank_by_week : float
-            Rank based on total time played for the week, with 1 representing
-            the most time
-
         Returns
         -------
-        DataFrame
+        time_rank : DataFrame
+            week_start : datetime
+                The date of the first Sunday of each week
+            title : object
+                The title of the game played
+            minutes_played : float
+                Total minutes played in the week by game
+            rank_by_week : float
+                Rank based on total time played for the week, with 1
+                representing the most time
         '''
-        # TODO: continue comments from this function forward
+
         time_rank_by_week = pd.DataFrame(self
                                          ._source_data.groupby(['title',
                                                                 'week_start'],
@@ -726,6 +735,19 @@ class GamePlayData:
     def __agg_total_time_played(self):
         '''
         Sums up total time played by game, and ranks totals
+
+        Returns
+        -------
+        time_played : DataFrame
+            title : object (str)
+                Title of game
+            minutes_played : int64
+                Total minutes spent playing the game since data tracking began
+            hours_played : float64
+                Total hours spent playing the game since data tracking began
+            rank : float64
+                Rank of game based on time spent playing, with 1 representing
+                the most time spent
         '''
         time_played = pd.DataFrame(self._source_data.groupby('title',
                                                              as_index=False)
@@ -741,6 +763,16 @@ class GamePlayData:
     def __weekly_hours_by_game(self):
         '''
         Shows total hours played for each game for each week
+
+        Returns
+        -------
+        weekly_game_hours : DataFrame
+            week_start : datetime64[ns]
+                Week-start date (Monday-based) for title played
+            title : object (str)
+                Title of game
+            hours_played : float64[ns]
+                Total hours spent playing title for the week
         '''
         weekly_game_hours = (self._source_data.groupby(['week_start', 'title'],
                                                        as_index=False)
@@ -754,6 +786,18 @@ class GamePlayData:
         '''
         This generates data for the specified number of top ranked games
             - Primarily used to limit data points in graphs
+
+        Returns
+        -------
+        top : DataFrame
+            title : object (str)
+                Title of game
+            minutes_played : int64
+                Total minutes spent playing the game since data tracking began
+            hours_played : float64
+                Total hours spent playing the game since data tracking began
+            rank : float64
+                Overall rank by time played
         '''
         top = source_df[source_df['rank'] <= rank_num]
         return top
@@ -762,21 +806,18 @@ class GamePlayData:
         '''
         Creates a DataFrame containing the average playtime per day of week
 
-        DataFrame Fields
-        ----------------
-
-        dow : object
-            Day of week
-        minutes_played : float
-            Minutes played by day of week
-        hours_played : float
-            Hours played by day of week
-        rank : float
-            Rank for each day of week, with 1 representing the most time spent
-
         Returns
         -------
-        DataFrame
+        day_of_week : DataFrame
+            dow : object (str)
+                Day of week
+            minutes_played : float64
+                Minutes played by day of week
+            hours_played : float64
+                Hours played by day of week
+            rank : float64
+                Rank for each day of week, with 1 representing the most time
+                spent
         '''
         # day of week patterns
         day_of_week = (self._source_data.groupby('dow', as_index=False)
@@ -792,6 +833,23 @@ class GamePlayData:
         Runs a count of how many days each game was played
             - This is not 24-hour days, just a count of 1 per each individual
               date
+
+        Returns
+        -------
+        day_count : DataFrameGroupBy
+            dow : object (str)
+                Day of week title was played
+            title : object (str)
+                Title of game
+            DaysPlayed : int64
+                Number of times game was played on this day
+        total_day_count : DataFrameGroupBy
+            title : object (str)
+                Title of game
+            DaysPlayed : int64
+                Number of individual days that game was played
+            rank : int64
+                Rank based on number of individual days game was played
         '''
         day_count = (self._source_data.groupby(['dow', 'title'],
                                                as_index=False)
