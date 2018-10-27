@@ -25,6 +25,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from datetime import datetime
 # TODO: write detailed docstrings
+# TODO: add a by-game summary
 # TODO: have line graphs return DataFrame
 # TODO: in the summary at the top, have messages explaining movement in ranks
 
@@ -100,6 +101,12 @@ class GamePlayData:
         This function will create a horizontal bar chart representing total
         time spent playing individual games.
             - Time is ranked with longest at the bottom
+
+        Parameters
+        ----------
+        num_games : int
+            This determines the number of games to display, starting from the
+            top.  Defaults to 10.
         '''
         # set data
         top = self.__current_top(self.__agg_total_time_played(), num_games)
@@ -133,6 +140,12 @@ class GamePlayData:
         '''
         This creates a pie plot of the number of games specified
             - Focuses on overall time spent
+
+        Parameters
+        ----------
+        num_games : int
+            This determines the number of games to display, starting from the
+            top.  Defaults to 10.
         '''
         # pop out the first slice (assuming 10 items)
         # explode = (.1, 0, 0, 0, 0, 0, 0, 0, 0, 0)
@@ -148,6 +161,11 @@ class GamePlayData:
     def line_graph_top(self, rank_num=5):
         '''
         This graph shows every game that cracked the top rank number specified
+
+        Parameters
+        ----------
+        rank_num : int
+            Defines the range of rank numbers achieved, from 1 to rank_num.
         '''
         rank = self.__agg_time_rank_by_day()
         top = (rank[rank['rank_by_day'] <= rank_num])
@@ -165,9 +183,15 @@ class GamePlayData:
 
     def line_graph_curr_top(self, num_games=10):
         '''
-        Creates a line graph for game rankings
+        Creates a line graph for current game rankings
             - x-axis is date, y-axis is rank
             - lines represent rank by day
+        
+        Parameters
+        ----------
+        num_games : int
+            Similar to rank, this represents the number of games currently
+            ranked from 1 to num_games.
         '''
         # create a line graph for game rankings based on num_games value
         top = self.__current_top(self.__agg_total_time_played(), num_games)
@@ -185,8 +209,19 @@ class GamePlayData:
 
     def last_played(self):
         '''
-        Calculate the last played date of each game,
-        store in Data Frame named last_played
+        Calculates the last played date of each game
+
+        Returns
+        -------
+        last_played_by_game : DataFrame
+            Summary of last played dates by game.  Fields below.
+
+            title : object (str)
+                Title of game
+            date : datetime64[ns]
+                Date game was last played
+            dow : object (str)
+                Day of week game was last played
         '''
         last_played_by_game = (self._source_data.groupby('title',
                                                          as_index=False)
@@ -199,6 +234,18 @@ class GamePlayData:
     def log_first_played(self):
         '''
         Logs the first date each game was played
+
+        Returns
+        -------
+        first_played : DataFrame
+            Summary of first played dates by game.  Fields below.
+
+            title : object (str)
+                Title of game
+            date : datetime64[ns]
+                Date game was first played
+            dow : object (str)
+                Day of week game was first played
         '''
         first_played = (self._source_data
                         .groupby('title', as_index=False)[['date']].min())
@@ -212,6 +259,20 @@ class GamePlayData:
         hour
             - Basically, they haven't been given much time, but there's
               interest
+
+        Returns
+        -------
+        interested_in : DataFrame
+            Summary of games you may be interested in.  Fields below.
+
+            title : object (str)
+                Title of game
+            minutes_played : int64
+                Cumulative minutes played for title
+            hours_played : float64
+                Cumulative hours played for title
+            rank : float64
+                Overall rank by time played
         '''
         # find out what games you'd be interested in playing longer
         # use 25% - 50% quartiles to find
@@ -225,7 +286,28 @@ class GamePlayData:
     def need_to_play(self, num_games=5):
         '''
         This returns a list of games that have not been completed and have
-        not been played in the last 60 days.
+        not been played in the last 60 days.  Prints titles to console, with
+        a heading "Consider playing:"
+
+        Returns
+        -------
+        been_a_while : DataFrame
+            Summary of games that haven't been played recently.  Fields below.
+
+            title : object (str)
+                Title of game
+            date : datetime64[ns]
+                Date last played
+            dow : object (str)
+                Day of week last played
+            minutes_played : int64
+                Cumulative minutes played for title
+            hours_played : float64
+                Cumulative hours played for title
+            rank : float64
+                Overall rank by time played
+            complete : bool
+                Indicates whether game has been completed (true) or not (false)
         '''
         last_played = self.last_played()
         hrs_played = self.__agg_total_time_played()
@@ -245,6 +327,19 @@ class GamePlayData:
         return been_a_while
 
     def graph_single_game_weekly(self, game_title='Octopath Traveler'):
+        '''
+        Graphs the amount of time spent in hours on a single game by week
+
+        Returns
+        -------
+        graph_data : DataFrame
+            Summary of time spent in hours on a single game.  Fields below.
+
+            index : datetime64[ns]
+                Date game was played
+            hours_played : float64
+                Hours spent playing game for specified date
+        '''
         source_data = self.__weekly_hours_by_game()
         source_data = source_data[(source_data['title'] == game_title)]
         graph_data = (source_data[['week_start', 'hours_played']]
@@ -263,6 +358,21 @@ class GamePlayData:
     def graph_two_games_weekly(self,
                                game_title_1='Octopath Traveler',
                                game_title_2='Monster Hunter Generations'):
+        '''
+        Graphs the amount of time spent in hours for two games by week
+
+        Returns
+        -------
+        graph_data : DataFrame
+            Summary of time spent in hours on two games.  Fields below.
+
+            index : datetime64[ns]
+                Date game was played
+            game_title_1 : float64
+                Hours spent playing game for specified date
+            game_title_2 : float64
+                Hours spent playing game for specified date
+        '''
         # TODO: modify this to accept a list, and remove single_game_weekly
         source_data = self.__weekly_hours_by_game()
         # pull data for game_title_1
@@ -293,7 +403,8 @@ class GamePlayData:
 
     def save_data(self):
         '''
-        Outputs data frames to a multiple-tabbed excel file
+        Outputs data frames to a multiple-tabbed excel file.  Output is
+        determined by config.json's "output" string.
         '''
         # run all class methods to gather data for output
         monthly_hour_agg = self.__agg_month()
@@ -332,7 +443,32 @@ class GamePlayData:
                                   index=False)
         writer.save()
 
-    def check_streaks(self):
+    def check_streaks(self, top_games=10):
+        '''
+        Evaluates which games have been played at least two consecutive days
+        in a row.  Prints any games that are currently being played in a streak
+        and graphs the longest streaks along with the days for each
+        title.
+
+        Parameters
+        ----------
+        top_games : int
+            Number of games to display in graph.  Graph starts from the game
+            with the most consecutive days.
+
+        Returns
+        -------
+        max_streak : DataFrame
+            Superset of data used in graph displaying all games that have been
+            played in a streak, along with the number of consecutive days.
+            Fields below.
+
+            index : object (str)
+                Date game was played
+            days : float64
+                Days played in a continuous streak
+
+        '''
         # data needed: game title and date
         df = self._source_data[['title', 'date']]
         # order by game title first, then date
@@ -365,12 +501,14 @@ class GamePlayData:
                           [['title', 'streak_num']])
         # turn the title(s) into a list to print
         # if current_streak empty, put 'None' in list
+        # TODO: see if printout would look nicer with two lists zipped together
         print('Current streak:')
         if len(current_streak) == 0:
             print('None')
         else:
             current_streak['days'] = current_streak['streak_num'] + 1
-            current_streak = current_streak[['title', 'days']].set_index('title')
+            current_streak = (current_streak[['title', 'days']]
+                              .set_index('title'))
             print(current_streak)
         # take max streak_sum, grouped by title, store in new object
         max_streak = df.groupby('title', as_index=False)['streak_num'].max()
@@ -379,7 +517,8 @@ class GamePlayData:
                                                                ascending=False)
         # graph data
         max_streak = max_streak.reset_index().set_index('title')[['days']]
-        max_streak.head(10).plot.barh(title='Top 10 Streaks')
+        chart_title = 'Top ' + str(top_games) + ' Streaks'
+        max_streak.head(top_games).plot.barh(title=chart_title)
         return max_streak
 
     def __init__(self):
@@ -416,15 +555,52 @@ class GamePlayData:
         self._completed = complete
         self._config = config
 
-    def __get_source_data(self):
+    def get_source_data(self):
         '''
-        Returns Data Frame of original gameplay data
+        Returns
+        -------
+        _source_data : DataFrame
+            Data Frame of original gameplay data.  Fields below.
+
+            title : object (str)
+                Title of game
+            time_played : datetime64[ns]
+                Time played for given date
+            date : datetime64[ns]
+                Date game was played
+            system : object (str)
+                Video game system of title
+            minutes_played : int64
+                Minutes played for given date
+            hours_played : float64
+                Hours played for given date
+            dow : object (str)
+                Day of week that game was played
+            cum_total_minutes : int64
+                Cumulative minutes played for a given game, running from start
+                of data tracking
+            week_start : datetime64[ns]
+                Date of week start for given date (Monday-based)
+            month : datetime64[ns]
+                First of the month for given date
         '''
         return self._source_data
 
     def __agg_month(self):
         '''
         Roll up monthly totals, returns DataFrame
+
+        Returns
+        -------
+        monthly_hour : DataFrame
+            Displays hours played by month, by title.  Fields below.
+
+            month : datetime64[ns]
+                First of the month for given date
+            title : object (str)
+                Title of game
+            hours_played : float64
+                Hours played for given month
         '''
         monthly_hour = (self._source_data
                         .groupby(['month', 'title'], as_index=False)
@@ -524,6 +700,7 @@ class GamePlayData:
         -------
         DataFrame
         '''
+        # TODO: continue comments from this function forward
         time_rank_by_week = pd.DataFrame(self
                                          ._source_data.groupby(['title',
                                                                 'week_start'],
