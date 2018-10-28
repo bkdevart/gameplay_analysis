@@ -520,40 +520,6 @@ class GamePlayData:
         max_streak.head(top_games).plot.barh(title=chart_title)
         return max_streak
 
-    def __init__(self):
-        '''
-        Set up paths, imports data and perform initial calculations:
-            - Minutes played
-            - Hours played
-            - Day of week
-            - cumulative minutes (total and by game)
-            - Week start date
-            - Month
-        '''
-        with open('config.json') as f:
-            config = json.load(f)
-        path = (config['input'])
-        source = pd.read_csv((path + 'game_log.csv'),
-                             parse_dates=['date', 'time_played'])
-        complete = pd.read_csv(path + 'completed.csv')
-
-        # perform initial calculations
-        source['minutes_played'] = ((source['time_played'].dt.hour * 60)
-                                    + source['time_played'].dt.minute)
-        source['hours_played'] = source['minutes_played'] / 60
-        source['dow'] = source['date'].dt.weekday_name
-        source.sort_values('date', inplace=True)
-        source['cum_total_minutes'] = (source.groupby('title')
-                                       ['minutes_played'].cumsum())
-        # add in start week (Sunday - Sat)
-        # subtract the day number from the date (with 0 being Monday)
-        source['week_start'] = (source['date'] - pd.to_timedelta
-                                (source['date'].dt.dayofweek, unit='d'))
-        source['month'] = source['date'].values.astype('datetime64[M]')
-        self._source_data = source
-        self._completed = complete
-        self._config = config
-
     def get_source_data(self):
         '''
         Returns
@@ -584,6 +550,51 @@ class GamePlayData:
                 First of the month for given date
         '''
         return self._source_data
+
+    def game_completed(self, game_title):
+        df = self._completed[self._completed['title'] == game_title]
+        game_complete = df['complete'].values[0]
+        if game_complete:
+            # removes time from date
+            date_complete = str(df['date_completed'].values[0])[:10]
+            print(game_title + ' was completed on ' + date_complete)
+        else:
+            print(game_title + ' has not been completed yet.')
+
+    def __init__(self):
+        '''
+        Set up paths, imports data and perform initial calculations:
+            - Minutes played
+            - Hours played
+            - Day of week
+            - cumulative minutes (total and by game)
+            - Week start date
+            - Month
+        '''
+        with open('config.json') as f:
+            config = json.load(f)
+        path = (config['input'])
+        source = pd.read_csv((path + 'game_log.csv'),
+                             parse_dates=['date', 'time_played'])
+        complete = pd.read_csv(path + 'completed.csv',
+                               parse_dates=['date_completed'])
+
+        # perform initial calculations
+        source['minutes_played'] = ((source['time_played'].dt.hour * 60)
+                                    + source['time_played'].dt.minute)
+        source['hours_played'] = source['minutes_played'] / 60
+        source['dow'] = source['date'].dt.weekday_name
+        source.sort_values('date', inplace=True)
+        source['cum_total_minutes'] = (source.groupby('title')
+                                       ['minutes_played'].cumsum())
+        # add in start week (Sunday - Sat)
+        # subtract the day number from the date (with 0 being Monday)
+        source['week_start'] = (source['date'] - pd.to_timedelta
+                                (source['date'].dt.dayofweek, unit='d'))
+        source['month'] = source['date'].values.astype('datetime64[M]')
+        self._source_data = source
+        self._completed = complete
+        self._config = config
 
     def __agg_month(self):
         '''
@@ -865,7 +876,7 @@ class GamePlayData:
 # %%
 
 
-def summarize():
+def summarize_all():
     '''
     This outputs the dashboard graphs to the console and saves export data
     '''
@@ -882,5 +893,14 @@ def summarize():
 # %%
 
 
+def summarize_game(game_title):
+    '''
+    Outputs summary information and graphs for specified game_title
+    '''
+    game_data = GamePlayData()
+    
+# %%
+
+
 # main
-summarize()
+summarize_all()
