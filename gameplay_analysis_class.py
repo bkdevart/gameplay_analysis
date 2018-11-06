@@ -592,26 +592,50 @@ class GamePlayData:
         return df
 
     def single_game_streaks(self, game_title):
+        '''
+        Gives detailed information on gameplay streaks for specified game_title
+        '''
         df = self.get_streaks()
         df = df[df['title'] == game_title]
-        # TODO: figure out how to group start/end of each streak
+        # init this to true for first loop
+        first_streak = True
+        streak_ranges = pd.DataFrame(columns=['start', 'end'])
         # loop through streak_num col, starting with 1 until next 1 is reached
-        for index, row in df.iterrows():
+        # for index, row in df.iterrows():
+        for i, (index, row) in enumerate(df.iterrows()):
+            # import pdb; pdb.set_trace()
             # record the date at 1, and also last next_day before next 1
             # two things would trigger logging next_day:
             # 1. we hit streak_num = 1 after first streak_num = 1
             # 2. we hit the end of the dataframe
             start = row['date']
-            end = row['next_day']
             streak = row['streak_num']
-            if streak == 1:
+            if streak == 1.0:
+                # import pdb; pdb.set_trace()
+                # need to find out if this is the first streak for logic above
+                if first_streak is False:
+                    last_df = end
+                    # append date at 1 and last next_day to dataframe
+                    add_row = pd.DataFrame([(start_df, last_df)],
+                                            columns=['start', 'end'])
+                    streak_ranges = pd.concat([streak_ranges, add_row])
+                # no matter what, start begins here
                 start_df = start
-            last_df = end
-        # append date at 1 and last next_day to dataframe, start/end columns
-        # repeat until end of dataframe is reached
-        
-        import pdb; pdb.set_trace()
-        return
+                # first_streak = False
+            # repeat until end of dataframe is reached
+            # check for end of df
+            if i == len(df) - 1:
+                start_df = start
+                last_df = row['next_day']
+                add_row = pd.DataFrame([(start_df, last_df)],
+                                       columns=['start', 'end'])
+                streak_ranges = pd.concat([streak_ranges, add_row])
+            first_streak = False
+            # because of the algorithm's lag, this needs to be logged last
+            end = row['next_day']
+            
+            # import pdb; pdb.set_trace()
+        return streak_ranges
 
     def __init__(self):
         '''
