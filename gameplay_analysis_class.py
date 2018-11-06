@@ -633,8 +633,19 @@ class GamePlayData:
             first_streak = False
             # because of the algorithm's lag, this needs to be logged last
             end = row['next_day']
-            
-            # import pdb; pdb.set_trace()
+        # create column for number of days for each streak
+        streak_ranges['days'] = streak_ranges['end'] - streak_ranges['start']
+        # create column for rank based on days for each streak
+        streak_ranges['rank'] = streak_ranges['days'].rank(ascending=False)
+        # TODO: print out summary of streaks - maximum, total num, etc
+        # import pdb; pdb.set_trace()
+        max_days = streak_ranges[streak_ranges['rank'] == 1][['days']]
+        max_start = streak_ranges[streak_ranges['rank'] == 1][['start']]
+        max_end = streak_ranges[streak_ranges['rank'] == 1][['end']]
+        print(f'The longest streak played was for {max_days}, starting at'
+              f'{max_start} and running until {max_end}')
+        # TODO: create graph of streaks and display
+        # TODO: start by create date series between each start and end
         return streak_ranges
 
     def __init__(self):
