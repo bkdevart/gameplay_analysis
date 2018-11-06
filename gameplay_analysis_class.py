@@ -594,7 +594,22 @@ class GamePlayData:
     def single_game_streaks(self, game_title):
         df = self.get_streaks()
         df = df[df['title'] == game_title]
-        # TODO: loop through df, creating a range for each date - next_day
+        # TODO: figure out how to group start/end of each streak
+        # loop through streak_num col, starting with 1 until next 1 is reached
+        for index, row in df.iterrows():
+            # record the date at 1, and also last next_day before next 1
+            # two things would trigger logging next_day:
+            # 1. we hit streak_num = 1 after first streak_num = 1
+            # 2. we hit the end of the dataframe
+            start = row['date']
+            end = row['next_day']
+            streak = row['streak_num']
+            if streak == 1:
+                start_df = start
+            last_df = end
+        # append date at 1 and last next_day to dataframe, start/end columns
+        # repeat until end of dataframe is reached
+        
         import pdb; pdb.set_trace()
         return
 
