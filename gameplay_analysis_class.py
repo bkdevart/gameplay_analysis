@@ -617,7 +617,7 @@ class GamePlayData:
                     last_df = end
                     # append date at 1 and last next_day to dataframe
                     add_row = pd.DataFrame([(start_df, last_df)],
-                                            columns=['start', 'end'])
+                                           columns=['start', 'end'])
                     streak_ranges = pd.concat([streak_ranges, add_row])
                 # no matter what, start begins here
                 start_df = start
@@ -637,15 +637,33 @@ class GamePlayData:
         streak_ranges['days'] = streak_ranges['end'] - streak_ranges['start']
         # create column for rank based on days for each streak
         streak_ranges['rank'] = streak_ranges['days'].rank(ascending=False)
-        # TODO: print out summary of streaks - maximum, total num, etc
-        # import pdb; pdb.set_trace()
-        max_days = streak_ranges[streak_ranges['rank'] == 1][['days']]
-        max_start = streak_ranges[streak_ranges['rank'] == 1][['start']]
-        max_end = streak_ranges[streak_ranges['rank'] == 1][['end']]
-        print(f'The longest streak played was for {max_days}, starting at'
+        # TODO: fix print out summary of streaks - maximum, total num, etc
+        max_days = streak_ranges[streak_ranges['rank'] == 1][['days']].values
+        max_start = streak_ranges[streak_ranges['rank'] == 1][['start']].values
+        max_end = streak_ranges[streak_ranges['rank'] == 1][['end']].values
+        print(f'The longest streak played was for {max_days}, starting on'
               f'{max_start} and running until {max_end}')
-        # TODO: create graph of streaks and display
-        # TODO: start by create date series between each start and end
+
+        # create graph of streaks and display
+        streak_dates = pd.Series()
+        for i, (index, row) in enumerate(streak_ranges.iterrows()):
+            # start by create date series between each start and end
+            start = row['start']
+            end = row['end']
+            new_range = pd.date_range(start, end)
+            streak_dates = streak_dates.append(new_range.to_series())
+
+        graph_data = pd.DataFrame(streak_dates)
+        # create value for graphing, and remove extra date column
+        graph_data['played'] = 1
+        graph_data = graph_data['played']
+        # create dates for gaps between streaks
+        all_days = (pd.DataFrame(pd.date_range(start=streak_dates.min(),
+                                               end=streak_dates.max()))
+                    .set_index(0))
+        # join on index with graph_data
+        graph_data_final = all_days.join(graph_data, how='left')
+        graph_data_final.plot()
         return streak_ranges
 
     def __init__(self):
