@@ -584,7 +584,7 @@ class GamePlayData:
                   .astype('datetime64[D]'))
         # import pdb; pdb.set_trace()
         df = df[['date', 'hours_played']].set_index('date')
-        ax = df.plot.bar()
+        ax = df.plot.bar(title='Hours Played')
         plt.xticks(locs, labels)
         ax.set_xlabel('date played')
         ax.set_ylabel('hours')
@@ -595,6 +595,7 @@ class GamePlayData:
         '''
         Gives detailed information on gameplay streaks for specified game_title
         '''
+        # TODO: have check for 0 streaks to avoid errors
         df = self.get_streaks()
         df = df[df['title'] == game_title]
         # init this to true for first loop
@@ -637,10 +638,11 @@ class GamePlayData:
         streak_ranges['days'] = streak_ranges['end'] - streak_ranges['start']
         # create column for rank based on days for each streak
         streak_ranges['rank'] = streak_ranges['days'].rank(ascending=False)
-        # TODO: fix print out summary of streaks - maximum, total num, etc
         max_days = streak_ranges[streak_ranges['rank'] == 1][['days']].values
         max_start = streak_ranges[streak_ranges['rank'] == 1][['start']].values
         max_end = streak_ranges[streak_ranges['rank'] == 1][['end']].values
+        print(str(len(streak_ranges)) + ' streak(s).')
+        # TODO: fix print out summary of streaks - maximum, total num, etc
         print(f'The longest streak played was for {max_days}, starting on'
               f'{max_start} and running until {max_end}')
 
@@ -663,7 +665,7 @@ class GamePlayData:
                     .set_index(0))
         # join on index with graph_data
         graph_data_final = all_days.join(graph_data, how='left')
-        graph_data_final.plot()
+        graph_data_final.plot(title='Gameplay Streaks')
         return streak_ranges
 
     def __init__(self):
