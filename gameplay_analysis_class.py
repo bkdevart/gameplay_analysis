@@ -25,7 +25,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 from datetime import datetime
 import matplotlib.pyplot as plt
-# TODO: add a by-game summary
 # TODO: have line graphs return DataFrame
 # TODO: in the summary at the top, have messages explaining movement in ranks
 
@@ -668,6 +667,18 @@ class GamePlayData:
         graph_data_final.plot(title='Gameplay Streaks')
         return streak_ranges
 
+    def weekly_hours_snapshot(self):
+        df = self.__weekly_hours_by_game()
+        # filter to current week
+        current_week = df['week_start'].max()
+        df = (df[df['week_start'] == current_week]
+              .set_index('title')[['hours_played']])
+        # set_ylabel drops label from the left side of the chart
+        df.plot.pie(y='hours_played', figsize=(5, 5),
+                    title='Weekly Hours Distribution',
+                    legend=False, autopct='%1.1f%%').set_ylabel('')
+        return
+
     def __init__(self):
         '''
         Set up paths, imports data and perform initial calculations:
@@ -989,6 +1000,7 @@ def summarize_all():
     '''
     game_data = GamePlayData()
     game_data.game_of_the_week()
+    game_data.weekly_hours_snapshot()
     game_data.need_to_play()
     game_data.check_streaks()
     game_data.line_weekly_hours()
@@ -1009,7 +1021,7 @@ def summarize_game(game_title):
     game_data.game_completed(game_title)
     # show play history with dates and hours (bar graph)
     game_data.single_game_history(game_title)
-    # TODO: show game streaks
+    # show game streaks
     game_data.single_game_streaks(game_title)
 # %%
 
