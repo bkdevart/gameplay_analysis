@@ -567,6 +567,9 @@ class GamePlayData:
 
     def single_game_history(self, game_title):
         df = self._source_data[self._source_data['title'] == game_title]
+        # add total hours spent playing game
+        total_hours = df['hours_played'].sum()
+        print('Played for ' + str(total_hours) + ' hours.')
         # create date range for graph
         # make range start from the 1st of the month on the min side
         min_date = df['date'].min().strftime('%Y-%m-01')
@@ -594,78 +597,84 @@ class GamePlayData:
         '''
         Gives detailed information on gameplay streaks for specified game_title
         '''
-        # TODO: have check for 0 streaks to avoid errors
         df = self.get_streaks()
+        # import pdb; pdb.set_trace()
         df = df[df['title'] == game_title]
-        # init this to true for first loop
-        first_streak = True
-        streak_ranges = pd.DataFrame(columns=['start', 'end'])
-        # loop through streak_num col, starting with 1 until next 1 is reached
-        # for index, row in df.iterrows():
-        for i, (index, row) in enumerate(df.iterrows()):
-            # import pdb; pdb.set_trace()
-            # record the date at 1, and also last next_day before next 1
-            # two things would trigger logging next_day:
-            # 1. we hit streak_num = 1 after first streak_num = 1
-            # 2. we hit the end of the dataframe
-            start = row['date']
-            streak = row['streak_num']
-            if streak == 1.0:
+        # TODO: have check for 0 streaks to avoid errors
+        if len(df) != 0:
+            # init this to true for first loop
+            first_streak = True
+            streak_ranges = pd.DataFrame(columns=['start', 'end'])
+            # loop through streak_num col, starting with 1 until next 1 reached
+            # for index, row in df.iterrows():
+            for i, (index, row) in enumerate(df.iterrows()):
                 # import pdb; pdb.set_trace()
-                # need to find out if this is the first streak for logic above
-                if first_streak is False:
-                    last_df = end
-                    # append date at 1 and last next_day to dataframe
+                # record the date at 1, and also last next_day before next 1
+                # two things would trigger logging next_day:
+                # 1. we hit streak_num = 1 after first streak_num = 1
+                # 2. we hit the end of the dataframe
+                start = row['date']
+                streak = row['streak_num']
+                if streak == 1.0:
+                    # need to find out if this is the first streak for logic
+                    if first_streak is False:
+                        last_df = end
+                        # append date at 1 and last next_day to dataframe
+                        add_row = pd.DataFrame([(start_df, last_df)],
+                                               columns=['start', 'end'])
+                        streak_ranges = pd.concat([streak_ranges, add_row])
+                    # no matter what, start begins here
+                    start_df = start
+                    # first_streak = False
+                # repeat until end of dataframe is reached
+                # check for end of df
+                if i == len(df) - 1:
+                    start_df = start
+                    last_df = row['next_day']
                     add_row = pd.DataFrame([(start_df, last_df)],
                                            columns=['start', 'end'])
                     streak_ranges = pd.concat([streak_ranges, add_row])
-                # no matter what, start begins here
-                start_df = start
-                # first_streak = False
-            # repeat until end of dataframe is reached
-            # check for end of df
-            if i == len(df) - 1:
-                start_df = start
-                last_df = row['next_day']
-                add_row = pd.DataFrame([(start_df, last_df)],
-                                       columns=['start', 'end'])
-                streak_ranges = pd.concat([streak_ranges, add_row])
-            first_streak = False
-            # because of the algorithm's lag, this needs to be logged last
-            end = row['next_day']
-        # create column for number of days for each streak
-        streak_ranges['days'] = streak_ranges['end'] - streak_ranges['start']
-        # create column for rank based on days for each streak
-        streak_ranges['rank'] = streak_ranges['days'].rank(ascending=False)
-        max_days = streak_ranges[streak_ranges['rank'] == 1][['days']].values
-        max_start = streak_ranges[streak_ranges['rank'] == 1][['start']].values
-        max_end = streak_ranges[streak_ranges['rank'] == 1][['end']].values
-        print(str(len(streak_ranges)) + ' streak(s).')
-        # TODO: fix print out summary of streaks - maximum, total num, etc
-        print(f'The longest streak played was for {max_days}, starting on'
-              f'{max_start} and running until {max_end}')
+                first_streak = False
+                # because of the algorithm's lag, this needs to be logged last
+                end = row['next_day']
+            # create column for number of days for each streak
+            streak_ranges['days'] = (streak_ranges['end']
+                                     - streak_ranges['start'])
+            # create column for rank based on days for each streak
+            streak_ranges['rank'] = streak_ranges['days'].rank(ascending=False)
+            max_days = (streak_ranges[streak_ranges['rank'] == 1][['days']]
+                        .values)
+            max_start = (streak_ranges[streak_ranges['rank'] == 1][['start']]
+                         .values)
+            max_end = streak_ranges[streak_ranges['rank'] == 1][['end']].values
+            print(str(len(streak_ranges)) + ' streak(s).')
+            # TODO: fix print out summary of streaks - maximum, total num, etc
+            print(f'The longest streak played was for {max_days}, starting on'
+                  f'{max_start} and running until {max_end}')
 
-        # create graph of streaks and display
-        streak_dates = pd.Series()
-        for i, (index, row) in enumerate(streak_ranges.iterrows()):
-            # start by create date series between each start and end
-            start = row['start']
-            end = row['end']
-            new_range = pd.date_range(start, end)
-            streak_dates = streak_dates.append(new_range.to_series())
+            # create graph of streaks and display
+            streak_dates = pd.Series()
+            for i, (index, row) in enumerate(streak_ranges.iterrows()):
+                # start by create date series between each start and end
+                start = row['start']
+                end = row['end']
+                new_range = pd.date_range(start, end)
+                streak_dates = streak_dates.append(new_range.to_series())
 
-        graph_data = pd.DataFrame(streak_dates)
-        # create value for graphing, and remove extra date column
-        graph_data['played'] = 1
-        graph_data = graph_data['played']
-        # create dates for gaps between streaks
-        all_days = (pd.DataFrame(pd.date_range(start=streak_dates.min(),
-                                               end=streak_dates.max()))
-                    .set_index(0))
-        # join on index with graph_data
-        graph_data_final = all_days.join(graph_data, how='left')
-        graph_data_final.plot(title='Gameplay Streaks')
-        return streak_ranges
+            graph_data = pd.DataFrame(streak_dates)
+            # create value for graphing, and remove extra date column
+            graph_data['played'] = 1
+            graph_data = graph_data['played']
+            # create dates for gaps between streaks
+            all_days = (pd.DataFrame(pd.date_range(start=streak_dates.min(),
+                                                   end=streak_dates.max()))
+                        .set_index(0))
+            # join on index with graph_data
+            graph_data_final = all_days.join(graph_data, how='left')
+            graph_data_final.plot(title='Gameplay Streaks')
+        else:
+            print('No streaks.')
+        return
 
     def weekly_hours_snapshot(self):
         df = self.__weekly_hours_by_game()
