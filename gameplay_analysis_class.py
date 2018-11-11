@@ -23,8 +23,8 @@ from datetime import timedelta
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
-from datetime import datetime
-# TODO: add a by-game summary
+from datetime import datetime, date
+import matplotlib.pyplot as plt
 # TODO: have line graphs return DataFrame
 # TODO: in the summary at the top, have messages explaining movement in ranks
 
@@ -442,6 +442,34 @@ class GamePlayData:
                                   index=False)
         writer.save()
 
+    def get_streaks(self):
+        # data needed: game title and date
+        df = self._source_data[['title', 'date']]
+        # order by game title first, then date
+        df = df.sort_values(['title', 'date'])
+        # use groupby with title, shift date down by one to get next day played
+        df['next_day'] = df.groupby('title')['date'].shift(-1)
+        # fill nat values in next_day with date values (for subtraction)
+        df['next_day'] = df['next_day'].fillna(df['date'])
+        # subtract number of days between date and next_day, store in column
+        df['consecutive'] = (df['next_day'] - df['date'])
+        # if column value = 1 day, streak = true (new column)
+        df = df[(df['consecutive'] == timedelta(days=1))]
+        # need to group streaks
+        # test: date - date.shift(-1) = 1 day, and same for next_day
+        df['group'] = (((df['next_day'] - df['next_day'].shift(1))
+                        == timedelta(days=1)) &
+                       ((df['date'] - df['date'].shift(1))
+                        == timedelta(days=1)))
+        # false represents the beginning of each streak, so it equals 1
+        df['streak_num'] = np.where(df['group'] == False, 1, np.nan)
+        # forward fill streak_num to complete streak count
+        for col in df.columns:
+            g = df['streak_num'].notnull().cumsum()
+            df['streak_num'] = (df['streak_num'].fillna(method='ffill') +
+                                df['streak_num'].groupby(g).cumcount())
+        return df
+
     def check_streaks(self, top_games=10):
         '''
         Evaluates which games have been played at least two consecutive days
@@ -468,36 +496,12 @@ class GamePlayData:
                 Days played in a continuous streak
 
         '''
-        # data needed: game title and date
-        df = self._source_data[['title', 'date']]
-        # order by game title first, then date
-        df = df.sort_values(['title', 'date'])
-        # use groupby with title, shift date down by one to get next day played
-        df['next_day'] = df.groupby('title')['date'].shift(-1)
-        # fill nat values in next_day with date values (for subtraction)
-        df['next_day'] = df['next_day'].fillna(df['date'])
-        # subtract number of days between date and next_day, store in column
-        df['consecutive'] = (df['next_day'] - df['date'])
-        # if column value = 1 day, streak = true (new column)
-        df = df[(df['consecutive'] == timedelta(days=1))]
-        # need to group streaks
-        # test: date - date.shift(-1) = 1 day, and same for next_day
-        df['group'] = (((df['next_day'] - df['next_day'].shift(1))
-                        == timedelta(days=1)) &
-                       ((df['date'] - df['date'].shift(1))
-                        == timedelta(days=1)))
-        # false represents the beginning of each streak, so it equals 1
-        df['streak_num'] = np.where(df['group'] == False, 1, np.nan)
-        # forward fill streak_num to complete streak count
-        for col in df.columns:
-            g = df['streak_num'].notnull().cumsum()
-            df['streak_num'] = (df['streak_num'].fillna(method='ffill') +
-                                df['streak_num'].groupby(g).cumcount())
+        df = self.get_streaks()
         # calculate current streak (streaks with yesterday's date)
         # filter down to results with yesterday's date
-        current_streak = (df[(df['next_day'] ==
-                             (datetime.now() - timedelta(days=1)).date())]
-                          [['title', 'streak_num']])
+        yesterday = pd.Timestamp(date.today() - timedelta(1))
+        current_streak = (df[(df['next_day'] == yesterday)][['title',
+                                                             'streak_num']])
         # turn the title(s) into a list to print
         # if current_streak empty, put 'None' in list
         # TODO: see if printout would look nicer with two lists zipped together
@@ -518,41 +522,7 @@ class GamePlayData:
         max_streak = max_streak.reset_index().set_index('title')[['days']]
         chart_title = 'Top ' + str(top_games) + ' Streaks'
         max_streak.head(top_games).plot.barh(title=chart_title)
-        return max_streak
-
-    def __init__(self):
-        '''
-        Set up paths, imports data and perform initial calculations:
-            - Minutes played
-            - Hours played
-            - Day of week
-            - cumulative minutes (total and by game)
-            - Week start date
-            - Month
-        '''
-        with open('config.json') as f:
-            config = json.load(f)
-        path = (config['input'])
-        source = pd.read_csv((path + 'game_log.csv'),
-                             parse_dates=['date', 'time_played'])
-        complete = pd.read_csv(path + 'completed.csv')
-
-        # perform initial calculations
-        source['minutes_played'] = ((source['time_played'].dt.hour * 60)
-                                    + source['time_played'].dt.minute)
-        source['hours_played'] = source['minutes_played'] / 60
-        source['dow'] = source['date'].dt.weekday_name
-        source.sort_values('date', inplace=True)
-        source['cum_total_minutes'] = (source.groupby('title')
-                                       ['minutes_played'].cumsum())
-        # add in start week (Sunday - Sat)
-        # subtract the day number from the date (with 0 being Monday)
-        source['week_start'] = (source['date'] - pd.to_timedelta
-                                (source['date'].dt.dayofweek, unit='d'))
-        source['month'] = source['date'].values.astype('datetime64[M]')
-        self._source_data = source
-        self._completed = complete
-        self._config = config
+        return df
 
     def get_source_data(self):
         '''
@@ -584,6 +554,180 @@ class GamePlayData:
                 First of the month for given date
         '''
         return self._source_data
+
+    def game_completed(self, game_title):
+        df = self._completed[self._completed['title'] == game_title]
+        game_complete = df['complete'].values[0]
+        if game_complete:
+            # removes time from date
+            date_complete = str(df['date_completed'].values[0])[:10]
+            print(game_title + ' was completed on ' + date_complete)
+        else:
+            print(game_title + ' has not been completed yet.')
+
+    def single_game_history(self, game_title):
+        df = self._source_data[self._source_data['title'] == game_title]
+        # add total hours spent playing game
+        total_hours = df['hours_played'].sum()
+        print('Played for ' + str("{0:.2f}".format(total_hours)) + ' hours.')
+        # create date range for graph
+        # make range start from the 1st of the month on the min side
+        min_date = df['date'].min().strftime('%Y-%m-01')
+        date_range = pd.DataFrame(pd.date_range(min_date, df['date'].max()))
+        date_range.columns = ['date']
+        # format date shorter for graph (ax object?)
+        # plt.locator_params(axis='x', nbins=10)
+        df = pd.merge(df, date_range, how='right',
+                      on='date').sort_values('date').reset_index()
+        # get positions of start of each month, name/year of month
+        locs = df[df['date'].dt.day == 1].index
+        # remove time from datetime
+        labels = (df[df['date'].dt.day == 1][['date']].values
+                  .astype('datetime64[D]').astype('str'))
+        df = df[['date', 'hours_played']].set_index('date')
+        ax = df.plot.bar(title='Hours Played')
+        plt.xticks(locs, labels)
+        ax.set_xlabel('date played')
+        ax.set_ylabel('hours')
+        # df.plot.bar(ax=ax)
+        return df
+
+    def single_game_streaks(self, game_title):
+        '''
+        Gives detailed information on gameplay streaks for specified game_title
+        '''
+        df = self.get_streaks()
+        # import pdb; pdb.set_trace()
+        df = df[df['title'] == game_title]
+        # check for 0 streaks to avoid errors
+        if len(df) != 0:
+            # init this to true for first loop
+            first_streak = True
+            streak_ranges = pd.DataFrame(columns=['start', 'end'])
+            # loop through streak_num col, starting with 1 until next 1 reached
+            # for index, row in df.iterrows():
+            for i, (index, row) in enumerate(df.iterrows()):
+                # import pdb; pdb.set_trace()
+                # record the date at 1, and also last next_day before next 1
+                # two things would trigger logging next_day:
+                # 1. we hit streak_num = 1 after first streak_num = 1
+                # 2. we hit the end of the dataframe
+                start = row['date']
+                streak = row['streak_num']
+                if streak == 1.0:
+                    # need to find out if this is the first streak for logic
+                    if first_streak is False:
+                        last_df = end
+                        # append date at 1 and last next_day to dataframe
+                        add_row = pd.DataFrame([(start_df, last_df)],
+                                               columns=['start', 'end'])
+                        streak_ranges = pd.concat([streak_ranges, add_row])
+                    # no matter what, start begins here
+                    start_df = start
+                    # first_streak = False
+                # repeat until end of dataframe is reached
+                # check for end of df
+                if i == len(df) - 1:
+                    start_df = start
+                    last_df = row['next_day']
+                    add_row = pd.DataFrame([(start_df, last_df)],
+                                           columns=['start', 'end'])
+                    streak_ranges = pd.concat([streak_ranges, add_row])
+                first_streak = False
+                # because of the algorithm's lag, this needs to be logged last
+                end = row['next_day']
+            # create column for number of days for each streak
+            streak_ranges['days'] = (streak_ranges['end']
+                                     - streak_ranges['start'])
+            # create column for rank based on days for each streak
+            streak_ranges['rank'] = streak_ranges['days'].rank(ascending=False,
+                                                               method='dense')
+            max_days = (streak_ranges[streak_ranges['rank'] == 1][['days']]
+                        .values)
+            max_start = (streak_ranges[streak_ranges['rank'] == 1][['start']]
+                         .values)
+            max_end = streak_ranges[streak_ranges['rank'] == 1][['end']].values
+            print(str(len(streak_ranges)) + ' streak(s).')
+            # fix print out summary of streaks - maximum, total num, etc
+            # import pdb; pdb.set_trace()
+            max_days = int(max_days[0][0] / np.timedelta64(1, 'D'))
+            max_start = (pd.to_datetime(str(max_start[0][0]))
+                         .strftime('%m-%d-%Y'))
+            max_end = (pd.to_datetime(str(max_end[0][0]))
+                         .strftime('%m-%d-%Y'))
+            print(f'The longest streak played was for {max_days} days, '
+                  f'starting on {max_start} and running until {max_end}.')
+
+            # create graph of streaks and display
+            streak_dates = pd.Series()
+            for i, (index, row) in enumerate(streak_ranges.iterrows()):
+                # start by create date series between each start and end
+                start = row['start']
+                end = row['end']
+                new_range = pd.date_range(start, end)
+                streak_dates = streak_dates.append(new_range.to_series())
+
+            graph_data = pd.DataFrame(streak_dates)
+            # create value for graphing, and remove extra date column
+            graph_data['played'] = 1
+            graph_data = graph_data['played']
+            # create dates for gaps between streaks
+            all_days = (pd.DataFrame(pd.date_range(start=streak_dates.min(),
+                                                   end=streak_dates.max()))
+                        .set_index(0))
+            # join on index with graph_data
+            graph_data_final = all_days.join(graph_data, how='left')
+            graph_data_final.plot(title='Gameplay Streaks')
+        else:
+            print('No streaks.')
+        return
+
+    def weekly_hours_snapshot(self):
+        df = self.__weekly_hours_by_game()
+        # filter to current week
+        current_week = df['week_start'].max()
+        df = (df[df['week_start'] == current_week]
+              .set_index('title')[['hours_played']])
+        # set_ylabel drops label from the left side of the chart
+        df.plot.pie(y='hours_played', figsize=(5, 5),
+                    title='Weekly Hours Distribution',
+                    legend=False, autopct='%1.1f%%').set_ylabel('')
+        return
+
+    def __init__(self):
+        '''
+        Set up paths, imports data and perform initial calculations:
+            - Minutes played
+            - Hours played
+            - Day of week
+            - cumulative minutes (total and by game)
+            - Week start date
+            - Month
+        '''
+        with open('config.json') as f:
+            config = json.load(f)
+        path = (config['input'])
+        source = pd.read_csv((path + 'game_log.csv'),
+                             parse_dates=['date', 'time_played'])
+        complete = pd.read_csv(path + 'completed.csv',
+                               parse_dates=['date_completed'])
+
+        # perform initial calculations
+        source['minutes_played'] = ((source['time_played'].dt.hour * 60)
+                                    + source['time_played'].dt.minute)
+        source['hours_played'] = source['minutes_played'] / 60
+        source['dow'] = source['date'].dt.weekday_name
+        source.sort_values('date', inplace=True)
+        source['cum_total_minutes'] = (source.groupby('title')
+                                       ['minutes_played'].cumsum())
+        # add in start week (Sunday - Sat)
+        # subtract the day number from the date (with 0 being Monday)
+        source['week_start'] = (source['date'] - pd.to_timedelta
+                                (source['date'].dt.dayofweek, unit='d'))
+        source['month'] = source['date'].values.astype('datetime64[M]')
+        self._source_data = source
+        self._completed = complete
+        self._config = config
 
     def __agg_month(self):
         '''
@@ -865,12 +1009,13 @@ class GamePlayData:
 # %%
 
 
-def summarize():
+def summarize_all():
     '''
     This outputs the dashboard graphs to the console and saves export data
     '''
     game_data = GamePlayData()
     game_data.game_of_the_week()
+    game_data.weekly_hours_snapshot()
     game_data.need_to_play()
     game_data.check_streaks()
     game_data.line_weekly_hours()
@@ -878,9 +1023,23 @@ def summarize():
     game_data.pie_graph_top()
     game_data.line_graph_top()
     game_data.graph_two_games_weekly()
+    # TODO: find number of hours played in each game since it was completed
     game_data.save_data()
 # %%
 
 
+def summarize_game(game_title):
+    '''
+    Outputs summary information and graphs for specified game_title
+    '''
+    game_data = GamePlayData()
+    game_data.game_completed(game_title)
+    # show play history with dates and hours (bar graph)
+    game_data.single_game_history(game_title)
+    # show game streaks
+    game_data.single_game_streaks(game_title)
+# %%
+
+
 # main
-summarize()
+summarize_all()
