@@ -23,7 +23,7 @@ from datetime import timedelta
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
-from datetime import datetime
+from datetime import datetime, date
 import matplotlib.pyplot as plt
 # TODO: have line graphs return DataFrame
 # TODO: in the summary at the top, have messages explaining movement in ranks
@@ -499,9 +499,9 @@ class GamePlayData:
         df = self.get_streaks()
         # calculate current streak (streaks with yesterday's date)
         # filter down to results with yesterday's date
-        current_streak = (df[(df['next_day'] ==
-                             (datetime.now() - timedelta(days=1)).date())]
-                          [['title', 'streak_num']])
+        yesterday = pd.Timestamp(date.today() - timedelta(1))
+        current_streak = (df[(df['next_day'] == yesterday)][['title',
+                                                             'streak_num']])
         # turn the title(s) into a list to print
         # if current_streak empty, put 'None' in list
         # TODO: see if printout would look nicer with two lists zipped together
@@ -583,8 +583,7 @@ class GamePlayData:
         locs = df[df['date'].dt.day == 1].index
         # remove time from datetime
         labels = (df[df['date'].dt.day == 1][['date']].values
-                  .astype('datetime64[D]'))
-        # import pdb; pdb.set_trace()
+                  .astype('datetime64[D]').astype('str'))
         df = df[['date', 'hours_played']].set_index('date')
         ax = df.plot.bar(title='Hours Played')
         plt.xticks(locs, labels)
@@ -641,7 +640,8 @@ class GamePlayData:
             streak_ranges['days'] = (streak_ranges['end']
                                      - streak_ranges['start'])
             # create column for rank based on days for each streak
-            streak_ranges['rank'] = streak_ranges['days'].rank(ascending=False)
+            streak_ranges['rank'] = streak_ranges['days'].rank(ascending=False,
+                                                               method='dense')
             max_days = (streak_ranges[streak_ranges['rank'] == 1][['days']]
                         .values)
             max_start = (streak_ranges[streak_ranges['rank'] == 1][['start']]
@@ -649,6 +649,7 @@ class GamePlayData:
             max_end = streak_ranges[streak_ranges['rank'] == 1][['end']].values
             print(str(len(streak_ranges)) + ' streak(s).')
             # fix print out summary of streaks - maximum, total num, etc
+            # import pdb; pdb.set_trace()
             max_days = int(max_days[0][0] / np.timedelta64(1, 'D'))
             max_start = (pd.to_datetime(str(max_start[0][0]))
                          .strftime('%m-%d-%Y'))
