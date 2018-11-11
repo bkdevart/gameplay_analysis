@@ -569,7 +569,7 @@ class GamePlayData:
         df = self._source_data[self._source_data['title'] == game_title]
         # add total hours spent playing game
         total_hours = df['hours_played'].sum()
-        print('Played for ' + str(total_hours) + ' hours.')
+        print('Played for ' + str("{0:.2f}".format(total_hours)) + ' hours.')
         # create date range for graph
         # make range start from the 1st of the month on the min side
         min_date = df['date'].min().strftime('%Y-%m-01')
@@ -600,7 +600,7 @@ class GamePlayData:
         df = self.get_streaks()
         # import pdb; pdb.set_trace()
         df = df[df['title'] == game_title]
-        # TODO: have check for 0 streaks to avoid errors
+        # check for 0 streaks to avoid errors
         if len(df) != 0:
             # init this to true for first loop
             first_streak = True
@@ -648,9 +648,14 @@ class GamePlayData:
                          .values)
             max_end = streak_ranges[streak_ranges['rank'] == 1][['end']].values
             print(str(len(streak_ranges)) + ' streak(s).')
-            # TODO: fix print out summary of streaks - maximum, total num, etc
-            print(f'The longest streak played was for {max_days}, starting on'
-                  f'{max_start} and running until {max_end}')
+            # fix print out summary of streaks - maximum, total num, etc
+            max_days = int(max_days[0][0] / np.timedelta64(1, 'D'))
+            max_start = (pd.to_datetime(str(max_start[0][0]))
+                         .strftime('%m-%d-%Y'))
+            max_end = (pd.to_datetime(str(max_end[0][0]))
+                         .strftime('%m-%d-%Y'))
+            print(f'The longest streak played was for {max_days} days, '
+                  f'starting on {max_start} and running until {max_end}.')
 
             # create graph of streaks and display
             streak_dates = pd.Series()
