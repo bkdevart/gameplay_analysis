@@ -18,7 +18,6 @@ Techniques used:
 """
 import json
 from itertools import product
-# from pathlib import Path
 from datetime import timedelta
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -628,7 +627,6 @@ class GamePlayData:
                 # repeat until end of dataframe is reached
                 # check for end of df
                 if i == len(df) - 1:
-                    start_df = start
                     last_df = row['next_day']
                     add_row = pd.DataFrame([(start_df, last_df)],
                                            columns=['start', 'end'])
@@ -649,12 +647,12 @@ class GamePlayData:
             max_end = streak_ranges[streak_ranges['rank'] == 1][['end']].values
             print(str(len(streak_ranges)) + ' streak(s).')
             # fix print out summary of streaks - maximum, total num, etc
-            # import pdb; pdb.set_trace()
             max_days = int(max_days[0][0] / np.timedelta64(1, 'D'))
             max_start = (pd.to_datetime(str(max_start[0][0]))
                          .strftime('%m-%d-%Y'))
             max_end = (pd.to_datetime(str(max_end[0][0]))
                          .strftime('%m-%d-%Y'))
+            # TODO: modify to display current streaks if they are longest
             print(f'The longest streak played was for {max_days} days, '
                   f'starting on {max_start} and running until {max_end}.')
 
