@@ -23,8 +23,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 from datetime import datetime, date
-import matplotlib.pyplot as plt
-# TODO: have line graphs return DataFrame
+# import matplotlib.pyplot as plt
+# TODO: have line graphs return png object for web publishing
 # TODO: in the summary at the top, have messages explaining movement in ranks
 
 
@@ -555,6 +555,7 @@ class GamePlayData:
         return self._source_data
 
     def game_completed(self, game_title):
+        # import pdb; pdb.set_trace()
         df = self._completed[self._completed['title'] == game_title]
         game_complete = df['complete'].values[0]
         if game_complete:
